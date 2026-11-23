@@ -1,0 +1,11 @@
+import { build } from 'vite';
+import { readFile,writeFile,mkdir,chmod } from 'node:fs/promises';
+import { zipSync, strToU8 } from 'fflate';
+const out='artifacts/Career-Exhibit-Generator';await mkdir(out,{recursive:true});
+await build({configFile:false,publicDir:false,build:{ssr:'server/local.ts',target:'node22',outDir:out,emptyOutDir:false,minify:true,rollupOptions:{output:{entryFileNames:'generator.mjs',inlineDynamicImports:true}}},ssr:{noExternal:true},logLevel:'error'});
+const data:Record<string,Uint8Array>={};const write=async(name:string,bytes:Uint8Array,mode=0o644)=>{data[name]=bytes;await writeFile(`${out}/${name}`,bytes);await chmod(`${out}/${name}`,mode);};
+await write('Career-Exhibit-Studio.html',await readFile('artifacts/Career-Exhibit-Studio.html'));await write('Your-Turn.html',await readFile('artifacts/Your-Turn.html'));data['generator.mjs']=await readFile(`${out}/generator.mjs`);
+for(const [src,dest] of [['.env.example','model-settings.example'],['README.md','README.md'],['README.zh-CN.md','README.zh-CN.md'],['GENERATOR.md','GENERATOR.md']]) await write(dest,await readFile(src));
+await write('Start.command',strToU8(`#!/bin/sh\ncd "$(dirname "$0")" || exit 1\nNODE_BIN=$(command -v node 2>/dev/null)\nif [ -z "$NODE_BIN" ]; then for bin in /opt/homebrew/bin/node /usr/local/bin/node; do if [ -x "$bin" ]; then NODE_BIN=$bin; break; fi; done; fi\nif [ -z "$NODE_BIN" ]; then echo 'Install Node.js 22.18+ or 24+ first, then reopen this file.'; read -r _; exit 1; fi\nexec "$NODE_BIN" generator.mjs --open\n`),0o755);
+await write('Start.cmd',strToU8('@echo off\r\ncd /d "%~dp0"\r\nnode generator.mjs --open\r\npause\r\n'));
+const files=Object.fromEntries(Object.entries(data).map(([name,bytes])=>[`Career-Exhibit-Generator/${name}`,[bytes,{os:3,attrs:((name==='Start.command'?0o100755:0o100644)<<16)>>>0}]])) as Parameters<typeof zipSync>[0];await writeFile('artifacts/Career-Exhibit-Generator.zip',zipSync(files));
